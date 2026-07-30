@@ -2,7 +2,12 @@ import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { submitParticipantSchema } from "@/lib/validation";
-import { formatDateKeyUTC, parseDateKeyUTC, isDeadlinePassed } from "@/lib/date";
+import {
+  formatDateKeyUTC,
+  parseDateKeyUTC,
+  isDeadlinePassed,
+  getCandidateDateKeys,
+} from "@/lib/date";
 import type { ParticipantData } from "@/lib/types";
 
 export async function POST(
@@ -31,9 +36,14 @@ export async function POST(
     return NextResponse.json({ error: "응답 마감기한이 지났습니다" }, { status: 403 });
   }
 
-  const rangeStart = formatDateKeyUTC(event.startDate);
-  const rangeEnd = formatDateKeyUTC(event.endDate);
-  const outOfRange = availableDates.some((d) => d < rangeStart || d > rangeEnd);
+  const validDates = new Set(
+    getCandidateDateKeys({
+      startDate: formatDateKeyUTC(event.startDate),
+      endDate: formatDateKeyUTC(event.endDate),
+      candidateDates: event.candidateDates.map(formatDateKeyUTC),
+    })
+  );
+  const outOfRange = availableDates.some((d) => !validDates.has(d));
   if (outOfRange) {
     return NextResponse.json(
       { error: "선택한 날짜가 후보 날짜 범위를 벗어났습니다" },

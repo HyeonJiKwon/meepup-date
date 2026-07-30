@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { KBO_TEAMS } from "@/lib/kbo";
 
 const dateKey = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "yyyy-MM-dd 형식이어야 합니다");
 
@@ -33,3 +34,12 @@ export const submitParticipantSchema = z.object({
 });
 
 export type SubmitParticipantInput = z.infer<typeof submitParticipantSchema>;
+
+const teamCodes = KBO_TEAMS.map((t) => t.code) as [string, ...string[]];
+
+export const createTeamEventSchema = z.object({
+  teamCode: z.enum(teamCodes),
+  scope: z.enum(["home", "all"]).default("home"),
+});
+
+export type CreateTeamEventInput = z.infer<typeof createTeamEventSchema>;

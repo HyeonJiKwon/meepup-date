@@ -14,14 +14,17 @@ datasource db {
 }
 
 model Event {
-  id           String        @id @default(cuid())
-  title        String
-  description  String?
-  startDate    DateTime      @db.Date
-  endDate      DateTime      @db.Date
-  deadline     DateTime?
-  createdAt    DateTime      @default(now())
-  participants Participant[]
+  id             String        @id @default(cuid())
+  title          String
+  description    String?
+  startDate      DateTime      @db.Date
+  endDate        DateTime      @db.Date
+  candidateDates DateTime[]    @default([]) @db.Date
+  /// Per-date opponent/stadium info for team-created events, keyed by yyyy-MM-dd.
+  gameInfo       Json?
+  deadline       DateTime?
+  createdAt      DateTime      @default(now())
+  participants   Participant[]
 }
 
 model Participant {
@@ -35,4 +38,14 @@ model Participant {
   updatedAt      DateTime   @updatedAt
 
   @@unique([eventId, name])
+}
+
+model KboGame {
+  id       String   @id @default(cuid())
+  date     DateTime @db.Date
+  homeTeam String
+  awayTeam String
+  stadium  String
+
+  @@unique([date, homeTeam])
 }

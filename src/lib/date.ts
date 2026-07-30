@@ -44,3 +44,18 @@ export function eachDateKeyInRangeUTC(startKey: string, endKey: string): string[
   }
   return keys;
 }
+
+/**
+ * An event's valid candidate dates. Most events use every day in
+ * [startDate, endDate]; events with an explicit sparse schedule (e.g. a
+ * team's scattered home-game dates) set candidateDates instead.
+ */
+export function getCandidateDateKeys(event: {
+  startDate: string;
+  endDate: string;
+  candidateDates: string[];
+}): string[] {
+  return event.candidateDates.length > 0
+    ? event.candidateDates
+    : eachDateKeyInRangeUTC(event.startDate, event.endDate);
+}

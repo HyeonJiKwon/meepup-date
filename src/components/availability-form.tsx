@@ -3,6 +3,8 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { ko } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +13,7 @@ import {
   formatDateKeyLocal,
   parseDateKeyLocal,
   isDeadlinePassed,
+  getCandidateDateKeys,
 } from "@/lib/date";
 import type { EventWithParticipants } from "@/lib/types";
 
@@ -32,6 +35,10 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
   const deadlinePassed = event.deadline
     ? isDeadlinePassed(event.deadline)
     : false;
+  const candidateKeys = useMemo(
+    () => new Set(getCandidateDateKeys(event)),
+    [event]
+  );
 
   function loadExisting(nextName: string) {
     const existing = event.participants.find(
@@ -122,9 +129,22 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
           onSelect={(dates) => setSelected(dates ?? [])}
           startMonth={startDate}
           endMonth={endDate}
-          disabled={{ before: startDate, after: endDate }}
+          disabled={(date) => !candidateKeys.has(formatDateKeyLocal(date))}
           className="rounded-md border w-fit"
         />
+        {event.gameInfo && (
+          <ul className="mt-1 flex max-h-40 flex-col gap-1 overflow-y-auto rounded-md border p-2 text-xs text-muted-foreground">
+            {Object.entries(event.gameInfo)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([key, info]) => (
+                <li key={key}>
+                  {format(parseDateKeyLocal(key), "M/d (EEE)", { locale: ko })}{" "}
+                  vs {info.opponent} ({info.stadium}
+                  {info.isHome ? "" : ", 원정"})
+                </li>
+              ))}
+          </ul>
+        )}
       </div>
 
       <Button type="submit" disabled={submitting}>

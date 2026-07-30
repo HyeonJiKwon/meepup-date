@@ -20,6 +20,8 @@ export function EventView({
   url: string;
 }) {
   const rangeLabel = `${format(parseDateKeyLocal(event.startDate), "M월 d일", { locale: ko })} ~ ${format(parseDateKeyLocal(event.endDate), "M월 d일", { locale: ko })}`;
+  const candidateCountLabel =
+    event.candidateDates.length > 0 ? ` (총 ${event.candidateDates.length}일)` : "";
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-10">
@@ -32,6 +34,7 @@ export function EventView({
         )}
         <p className="text-sm text-muted-foreground">
           후보 날짜: {rangeLabel}
+          {candidateCountLabel}
           {event.deadline &&
             ` · 마감: ${format(parseDateKeyLocal(event.deadline), "M월 d일", { locale: ko })}`}
         </p>

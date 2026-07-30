@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatDateKeyUTC } from "@/lib/date";
-import type { EventWithParticipants } from "@/lib/types";
+import type { EventWithParticipants, GameInfo } from "@/lib/types";
 
 export async function getEventWithParticipants(
   id: string
@@ -18,6 +18,8 @@ export async function getEventWithParticipants(
     description: event.description,
     startDate: formatDateKeyUTC(event.startDate),
     endDate: formatDateKeyUTC(event.endDate),
+    candidateDates: event.candidateDates.map(formatDateKeyUTC),
+    gameInfo: event.gameInfo as Record<string, GameInfo> | null,
     deadline: event.deadline ? formatDateKeyUTC(event.deadline) : null,
     participants: event.participants.map((p) => ({
       id: p.id,

@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { eachDateKeyInRangeUTC, parseDateKeyLocal } from "@/lib/date";
+import { getCandidateDateKeys, parseDateKeyLocal } from "@/lib/date";
 import type { EventWithParticipants } from "@/lib/types";
 
 export function ResultsView({ event }: { event: EventWithParticipants }) {
@@ -19,7 +19,7 @@ export function ResultsView({ event }: { event: EventWithParticipants }) {
   const [minCount, setMinCount] = useState(total > 0 ? "1" : "0");
 
   const rows = useMemo(() => {
-    const dateKeys = eachDateKeyInRangeUTC(event.startDate, event.endDate);
+    const dateKeys = getCandidateDateKeys(event);
     return dateKeys
       .map((key) => {
         const names = event.participants
@@ -63,11 +63,20 @@ export function ResultsView({ event }: { event: EventWithParticipants }) {
         {filteredRows.map((row) => (
           <li key={row.key} className="flex flex-col gap-2 rounded-md border p-3">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">
-                {format(parseDateKeyLocal(row.key), "M월 d일 (EEE)", {
-                  locale: ko,
-                })}
-              </span>
+              <div className="flex flex-col">
+                <span className="font-medium">
+                  {format(parseDateKeyLocal(row.key), "M월 d일 (EEE)", {
+                    locale: ko,
+                  })}
+                </span>
+                {event.gameInfo?.[row.key] && (
+                  <span className="text-xs text-muted-foreground">
+                    vs {event.gameInfo[row.key].opponent} (
+                    {event.gameInfo[row.key].stadium}
+                    {event.gameInfo[row.key].isHome ? "" : ", 원정"})
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {row.count === total && (
                   <Badge>전원 가능</Badge>
