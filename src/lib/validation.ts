@@ -9,6 +9,7 @@ export const createEventSchema = z
     description: z.string().trim().max(500).optional(),
     startDate: dateKey,
     endDate: dateKey,
+    candidateDates: z.array(dateKey).max(180).optional(),
     deadline: dateKey.optional(),
   })
   .refine((data) => data.startDate <= data.endDate, {
@@ -23,7 +24,22 @@ export const createEventSchema = z
       return days <= 180;
     },
     { message: "날짜 범위는 최대 180일까지 가능합니다", path: ["endDate"] }
-  );
+  )
+  .refine(
+    (data) =>
+      !data.candidateDates ||
+      data.candidateDates.every(
+        (d) => d >= data.startDate && d <= data.endDate
+      ),
+    {
+      message: "후보 날짜는 선택한 범위 안에 있어야 합니다",
+      path: ["candidateDates"],
+    }
+  )
+  .refine((data) => !data.candidateDates || data.candidateDates.length > 0, {
+    message: "요일 필터에 해당하는 날짜가 없습니다",
+    path: ["candidateDates"],
+  });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 

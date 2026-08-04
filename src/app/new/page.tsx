@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useSyncExternalStore, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { toast } from "sonner";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,26 +27,12 @@ import {
 } from "@/components/ui/card";
 import { formatDateKeyLocal } from "@/lib/date";
 import { KBO_TEAMS } from "@/lib/kbo";
+import { useToday } from "@/lib/use-today";
 
-const noopSubscribe = () => () => {};
-
-// getSnapshot must return a stable reference across calls, or React treats
-// every render as "changed" and re-renders forever. Compute once and cache.
-let cachedToday: Date | undefined;
-function getToday() {
-  cachedToday ??= new Date();
-  return cachedToday;
-}
-
-/**
- * `new Date()` differs between the SSR pass and client hydration, which would
- * otherwise mismatch the calendars' "before today" disabled state. Returning
- * `undefined` for the server snapshot keeps the first client render matching
- * SSR output; React re-renders with the real date right after hydration.
- */
-function useToday(): Date | undefined {
-  return useSyncExternalStore(noopSubscribe, getToday, () => undefined);
-}
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
+const ALL_WEEKDAYS = new Set([0, 1, 2, 3, 4, 5, 6]);
+const WEEKDAYS = new Set([1, 2, 3, 4, 5]);
+const WEEKEND = new Set([0, 6]);
 
 export default function NewEventPage() {
   const router = useRouter();
@@ -54,6 +40,7 @@ export default function NewEventPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [range, setRange] = useState<DateRange | undefined>();
+  const [weekdays, setWeekdays] = useState<Set<number>>(ALL_WEEKDAYS);
   const [deadline, setDeadline] = useState<Date | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const [teamSubmitting, setTeamSubmitting] = useState<string | null>(null);
@@ -81,12 +68,32 @@ export default function NewEventPage() {
     }
   }
 
+  function toggleWeekday(day: number) {
+    setWeekdays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
     if (!range?.from || !range?.to) {
       toast.error("후보 날짜 범위를 선택해주세요");
       return;
+    }
+
+    let candidateDates: string[] | undefined;
+    if (weekdays.size < 7) {
+      candidateDates = eachDayOfInterval({ start: range.from, end: range.to })
+        .filter((d) => weekdays.has(d.getDay()))
+        .map(formatDateKeyLocal);
+      if (candidateDates.length === 0) {
+        toast.error("선택한 요일에 해당하는 날짜가 없습니다");
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -99,6 +106,7 @@ export default function NewEventPage() {
           description: description || undefined,
           startDate: formatDateKeyLocal(range.from),
           endDate: formatDateKeyLocal(range.to),
+          candidateDates,
           deadline: deadline ? formatDateKeyLocal(deadline) : undefined,
         }),
       });
@@ -133,7 +141,7 @@ export default function NewEventPage() {
           <CardTitle>새 약속 만들기</CardTitle>
           <CardDescription>
             {mode === "manual"
-              ? "후보 날짜 범위를 정하면 참여자들이 그 안에서 가능한 날짜를 골라요."
+              ? "후보 날짜 범위를 정하면 참여자들이 그 안에서 가능한 날짜를 골라요. 범위 안에서 특정 요일만 후보로 남기고 싶다면 아래 요일 필터를 써보세요."
               : "응원팀을 고르면 그 팀 홈경기 날짜로 직관 약속이 자동으로 만들어져요."}
           </CardDescription>
           <div className="mt-2 flex gap-2">
@@ -186,8 +194,12 @@ export default function NewEventPage() {
                     disabled={teamSubmitting !== null}
                     onClick={() => handleTeamSelect(team.code)}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={team.logo} alt="" className="size-5" />
+                    {teamSubmitting === team.code ? (
+                      <Loader2 className="size-5 animate-spin" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={team.logo} alt="" className="size-5" />
+                    )}
                     {teamSubmitting === team.code ? "만드는 중..." : team.name}
                   </Button>
                 ))}
@@ -240,9 +252,58 @@ export default function NewEventPage() {
                     onSelect={setRange}
                     numberOfMonths={1}
                     disabled={today ? { before: today } : undefined}
+                    today={today}
+                    locale={ko}
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label>요일 필터 (선택)</Label>
+              <p className="-mt-1 text-xs text-muted-foreground">
+                선택한 요일에 해당하는 날짜만 후보로 남아요. 기본은 범위 안
+                모든 날짜예요.
+              </p>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setWeekdays(ALL_WEEKDAYS)}
+                >
+                  전체
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setWeekdays(WEEKDAYS)}
+                >
+                  주중만
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setWeekdays(WEEKEND)}
+                >
+                  주말만
+                </Button>
+              </div>
+              <div className="flex gap-1">
+                {WEEKDAY_LABELS.map((label, day) => (
+                  <Button
+                    key={day}
+                    type="button"
+                    size="icon-sm"
+                    variant={weekdays.has(day) ? "default" : "outline"}
+                    onClick={() => toggleWeekday(day)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -267,12 +328,15 @@ export default function NewEventPage() {
                     onSelect={setDeadline}
                     numberOfMonths={1}
                     disabled={today ? { before: today } : undefined}
+                    today={today}
+                    locale={ko}
                   />
                 </PopoverContent>
               </Popover>
             </div>
 
             <Button type="submit" disabled={submitting} className="mt-2">
+              {submitting && <Loader2 className="size-4 animate-spin" />}
               {submitting ? "만드는 중..." : "만들기"}
             </Button>
           </form>

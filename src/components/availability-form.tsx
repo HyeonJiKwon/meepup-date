@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { ko } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
@@ -15,7 +16,10 @@ import {
   isDeadlinePassed,
   getCandidateDateKeys,
 } from "@/lib/date";
+import { useToday } from "@/lib/use-today";
 import type { EventWithParticipants } from "@/lib/types";
+
+const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
   const router = useRouter();
@@ -23,6 +27,7 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
   const [pin, setPin] = useState("");
   const [selected, setSelected] = useState<Date[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const today = useToday();
 
   const startDate = useMemo(
     () => parseDateKeyLocal(event.startDate),
@@ -39,6 +44,45 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
     () => new Set(getCandidateDateKeys(event)),
     [event]
   );
+  const datesByWeekday = useMemo(() => {
+    const byDay: string[][] = [[], [], [], [], [], [], []];
+    for (const key of candidateKeys) {
+      byDay[parseDateKeyLocal(key).getDay()].push(key);
+    }
+    return byDay;
+  }, [candidateKeys]);
+
+  const selectedKeys = useMemo(
+    () => new Set(selected.map(formatDateKeyLocal)),
+    [selected]
+  );
+
+  function isWeekdayFullySelected(day: number) {
+    const datesForDay = datesByWeekday[day];
+    return (
+      datesForDay.length > 0 &&
+      datesForDay.every((key) => selectedKeys.has(key))
+    );
+  }
+
+  function toggleWeekdayBulk(day: number) {
+    const datesForDay = datesByWeekday[day];
+    if (datesForDay.length === 0) return;
+
+    const allSelected = datesForDay.every((key) => selectedKeys.has(key));
+
+    if (allSelected) {
+      const toRemove = new Set(datesForDay);
+      setSelected((prev) =>
+        prev.filter((d) => !toRemove.has(formatDateKeyLocal(d)))
+      );
+    } else {
+      const toAdd = datesForDay
+        .filter((key) => !selectedKeys.has(key))
+        .map(parseDateKeyLocal);
+      setSelected((prev) => [...prev, ...toAdd]);
+    }
+  }
 
   function loadExisting(nextName: string) {
     const existing = event.participants.find(
@@ -123,6 +167,24 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
 
       <div className="flex flex-col gap-2">
         <Label>가능한 날짜 (여러 개 선택 가능)</Label>
+        <p className="-mt-1 text-xs text-muted-foreground">
+          날짜를 하나씩 눌러도 되고, 아래 요일 버튼을 누르면 그 요일 전체가
+          한 번에 선택/해제돼요.
+        </p>
+        <div className="flex flex-wrap items-center gap-1">
+          {WEEKDAY_LABELS.map((label, day) => (
+            <Button
+              key={day}
+              type="button"
+              size="icon-sm"
+              variant={isWeekdayFullySelected(day) ? "default" : "outline"}
+              disabled={datesByWeekday[day].length === 0}
+              onClick={() => toggleWeekdayBulk(day)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
         <Calendar
           mode="multiple"
           selected={selected}
@@ -130,6 +192,8 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
           startMonth={startDate}
           endMonth={endDate}
           disabled={(date) => !candidateKeys.has(formatDateKeyLocal(date))}
+          today={today}
+          locale={ko}
           className="rounded-md border w-fit"
         />
         {event.gameInfo && (
@@ -148,6 +212,7 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
       </div>
 
       <Button type="submit" disabled={submitting}>
+        {submitting && <Loader2 className="size-4 animate-spin" />}
         {submitting ? "저장 중..." : "제출하기"}
       </Button>
     </form>
