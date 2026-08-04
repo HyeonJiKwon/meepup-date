@@ -25,7 +25,6 @@ export async function generateMetadata({
     : null;
 
   const description = [
-    event.description,
     `후보 날짜: ${rangeLabel}`,
     deadlineLabel ? `마감: ${deadlineLabel}` : null,
   ]
