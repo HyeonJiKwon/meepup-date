@@ -8,13 +8,36 @@ import {
   isDeadlinePassed,
   getCandidateDateKeys,
 } from "@/lib/date";
+import {
+  checkIpRateLimit,
+  checkPinLock,
+  clearPinFailures,
+  getClientIp,
+  recordPinFailure,
+} from "@/lib/rate-limit";
 import type { ParticipantData } from "@/lib/types";
+
+function tooManyRequests(error: string, retryAfterSec: number) {
+  return NextResponse.json(
+    { error },
+    {
+      status: 429,
+      headers: { "Retry-After": String(retryAfterSec) },
+    }
+  );
+}
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: eventId } = await params;
+
+  const ipLimit = await checkIpRateLimit(getClientIp(request));
+  if (!ipLimit.ok) {
+    return tooManyRequests(ipLimit.error, ipLimit.retryAfterSec);
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = submitParticipantSchema.safeParse(body);
 
@@ -59,13 +82,24 @@ export async function POST(
 
   let participant;
   if (existing) {
+    const pinLock = await checkPinLock(eventId, name);
+    if (!pinLock.ok) {
+      return tooManyRequests(pinLock.error, pinLock.retryAfterSec);
+    }
+
     const pinMatches = await bcrypt.compare(pin, existing.pinHash);
     if (!pinMatches) {
+      const failure = await recordPinFailure(eventId, name);
+      if (!failure.ok) {
+        return tooManyRequests(failure.error, failure.retryAfterSec);
+      }
       return NextResponse.json(
         { error: "이미 사용 중인 이름이며 PIN이 일치하지 않습니다" },
         { status: 409 }
       );
     }
+
+    await clearPinFailures(eventId, name);
     participant = await prisma.participant.update({
       where: { id: existing.id },
       data: { availableDates: dates },

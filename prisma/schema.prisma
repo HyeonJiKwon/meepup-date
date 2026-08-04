@@ -49,3 +49,12 @@ model KboGame {
 
   @@unique([date, homeTeam])
 }
+
+/// IP rate limit / PIN failure lockout buckets for participant submit.
+model AuthThrottle {
+  id          String    @id
+  count       Int       @default(0)
+  windowStart DateTime  @default(now())
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
