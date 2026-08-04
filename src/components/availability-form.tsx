@@ -65,6 +65,18 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
     );
   }
 
+  const allSelected =
+    candidateKeys.size > 0 &&
+    [...candidateKeys].every((key) => selectedKeys.has(key));
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelected([]);
+    } else {
+      setSelected([...candidateKeys].map(parseDateKeyLocal));
+    }
+  }
+
   function toggleWeekdayBulk(day: number) {
     const datesForDay = datesByWeekday[day];
     if (datesForDay.length === 0) return;
@@ -168,10 +180,18 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
       <div className="flex flex-col gap-2">
         <Label>가능한 날짜 (여러 개 선택 가능)</Label>
         <p className="-mt-1 text-xs text-muted-foreground">
-          날짜를 하나씩 눌러도 되고, 아래 요일 버튼을 누르면 그 요일 전체가
-          한 번에 선택/해제돼요.
+          날짜를 하나씩 눌러도 되고, 전체선택이나 요일 버튼을 누르면 여러
+          날짜가 한 번에 선택/해제돼요.
         </p>
         <div className="flex flex-wrap items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant={allSelected ? "default" : "outline"}
+            onClick={toggleSelectAll}
+          >
+            {allSelected ? "전체해제" : "전체선택"}
+          </Button>
           {WEEKDAY_LABELS.map((label, day) => (
             <Button
               key={day}

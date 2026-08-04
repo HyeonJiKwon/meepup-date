@@ -1,8 +1,11 @@
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { formatDateKeyUTC } from "@/lib/date";
 import type { EventWithParticipants, GameInfo } from "@/lib/types";
 
-export async function getEventWithParticipants(
+// generateMetadata and the page component both need this; cache() dedupes
+// the DB call across the two within a single request.
+export const getEventWithParticipants = cache(async function getEventWithParticipants(
   id: string
 ): Promise<EventWithParticipants | null> {
   const event = await prisma.event.findUnique({
@@ -27,4 +30,4 @@ export async function getEventWithParticipants(
       availableDates: p.availableDates.map(formatDateKeyUTC),
     })),
   };
-}
+});
