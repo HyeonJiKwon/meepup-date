@@ -14,17 +14,18 @@ datasource db {
 }
 
 model Event {
-  id             String        @id @default(cuid())
-  title          String
-  description    String?
-  startDate      DateTime      @db.Date
-  endDate        DateTime      @db.Date
-  candidateDates DateTime[]    @default([]) @db.Date
+  id              String        @id @default(cuid())
+  title           String
+  description     String?
+  startDate       DateTime      @db.Date
+  endDate         DateTime      @db.Date
+  candidateDates  DateTime[]    @default([]) @db.Date
   /// Per-date opponent/stadium info for team-created events, keyed by yyyy-MM-dd.
-  gameInfo       Json?
-  deadline       DateTime?
-  createdAt      DateTime      @default(now())
-  participants   Participant[]
+  gameInfo        Json?
+  deadline        DateTime?
+  maxParticipants Int?
+  createdAt       DateTime      @default(now())
+  participants    Participant[]
 }
 
 model Participant {

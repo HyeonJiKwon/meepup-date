@@ -11,6 +11,7 @@ export const createEventSchema = z
     endDate: dateKey,
     candidateDates: z.array(dateKey).max(180).optional(),
     deadline: dateKey.optional(),
+    maxParticipants: z.coerce.number().int().min(1).max(1000).optional(),
   })
   .refine((data) => data.startDate <= data.endDate, {
     message: "종료일은 시작일보다 빠를 수 없습니다",

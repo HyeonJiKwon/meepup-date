@@ -50,7 +50,10 @@ export async function POST(
 
   const { name, pin, availableDates } = parsed.data;
 
-  const event = await prisma.event.findUnique({ where: { id: eventId } });
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    include: { _count: { select: { participants: true } } },
+  });
   if (!event) {
     return NextResponse.json({ error: "이벤트를 찾을 수 없습니다" }, { status: 404 });
   }
@@ -79,6 +82,16 @@ export async function POST(
   const existing = await prisma.participant.findUnique({
     where: { eventId_name: { eventId, name } },
   });
+
+  // Max participants caps new joins only — someone already counted should
+  // still be able to fix their own response after the group fills up.
+  if (
+    !existing &&
+    event.maxParticipants != null &&
+    event._count.participants >= event.maxParticipants
+  ) {
+    return NextResponse.json({ error: "정원이 다 찼습니다" }, { status: 403 });
+  }
 
   let participant;
   if (existing) {

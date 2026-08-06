@@ -19,5 +19,6 @@ export type EventWithParticipants = {
   candidateDates: string[];
   gameInfo: Record<string, GameInfo> | null;
   deadline: string | null;
+  maxParticipants: number | null;
   participants: ParticipantData[];
 };

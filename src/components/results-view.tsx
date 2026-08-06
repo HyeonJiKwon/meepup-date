@@ -43,7 +43,10 @@ export function ResultsView({ event }: { event: EventWithParticipants }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">참여자 {total}명</p>
+        <p className="text-sm text-muted-foreground">
+          참여자 {total}
+          {event.maxParticipants ? `/${event.maxParticipants}` : ""}명
+        </p>
         <Select value={minCount} onValueChange={(value) => setMinCount(value ?? "0")}>
           <SelectTrigger className="w-36">
             <SelectValue />

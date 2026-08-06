@@ -14,8 +14,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { title, description, startDate, endDate, candidateDates, deadline } =
-    parsed.data;
+  const {
+    title,
+    description,
+    startDate,
+    endDate,
+    candidateDates,
+    deadline,
+    maxParticipants,
+  } = parsed.data;
 
   const event = await prisma.event.create({
     data: {
@@ -25,6 +32,7 @@ export async function POST(request: Request) {
       endDate: parseDateKeyUTC(endDate),
       candidateDates: candidateDates?.map(parseDateKeyUTC) ?? [],
       deadline: deadline ? parseDateKeyUTC(deadline) : null,
+      maxParticipants: maxParticipants ?? null,
     },
   });
 

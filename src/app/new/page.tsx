@@ -42,6 +42,7 @@ export default function NewEventPage() {
   const [range, setRange] = useState<DateRange | undefined>();
   const [weekdays, setWeekdays] = useState<Set<number>>(ALL_WEEKDAYS);
   const [deadline, setDeadline] = useState<Date | undefined>();
+  const [maxParticipants, setMaxParticipants] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [teamSubmitting, setTeamSubmitting] = useState<string | null>(null);
   const [teamScope, setTeamScope] = useState<"home" | "all">("home");
@@ -108,6 +109,7 @@ export default function NewEventPage() {
           endDate: formatDateKeyLocal(range.to),
           candidateDates,
           deadline: deadline ? formatDateKeyLocal(deadline) : undefined,
+          maxParticipants: maxParticipants ? Number(maxParticipants) : undefined,
         }),
       });
       const data = await res.json();
@@ -333,6 +335,24 @@ export default function NewEventPage() {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="maxParticipants">최대 인원 (선택)</Label>
+              <Input
+                id="maxParticipants"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={1000}
+                placeholder="예: 5"
+                value={maxParticipants}
+                onChange={(e) => setMaxParticipants(e.target.value)}
+              />
+              <p className="-mt-1 text-xs text-muted-foreground">
+                정하면 마감일 전이라도 인원이 다 차면 결과 보기 탭이 기본으로
+                보여요.
+              </p>
             </div>
 
             <Button type="submit" disabled={submitting} className="mt-2">

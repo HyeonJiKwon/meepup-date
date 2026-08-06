@@ -24,6 +24,7 @@ export const getEventWithParticipants = cache(async function getEventWithPartici
     candidateDates: event.candidateDates.map(formatDateKeyUTC),
     gameInfo: event.gameInfo as Record<string, GameInfo> | null,
     deadline: event.deadline ? formatDateKeyUTC(event.deadline) : null,
+    maxParticipants: event.maxParticipants,
     participants: event.participants.map((p) => ({
       id: p.id,
       name: p.name,

@@ -137,6 +137,10 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
     }
   }
 
+  const isFull =
+    event.maxParticipants != null &&
+    event.participants.length >= event.maxParticipants;
+
   if (deadlinePassed) {
     return (
       <p className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -147,6 +151,12 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {isFull && (
+        <p className="rounded-md border border-dashed p-3 text-center text-sm text-muted-foreground">
+          정원({event.maxParticipants}명)이 다 찼어요. 이미 등록한
+          이름+PIN이면 계속 수정할 수 있어요.
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
           <Label htmlFor="name">이름</Label>
