@@ -33,37 +33,44 @@ function retryAfterSec(until: Date, now = new Date()) {
   return Math.max(1, Math.ceil((until.getTime() - now.getTime()) / 1000));
 }
 
-/** Fixed-window IP rate limit for participant POST. */
+/**
+ * Fixed-window IP rate limit for participant POST.
+ *
+ * This has to be ONE atomic statement, not read-then-decide-then-write.
+ * Even with `{ increment: 1 }` on the write, a separate read first (to
+ * decide "is the window expired?") leaves a gap where concurrent requests
+ * all read the same stale windowStart and each independently reset the
+ * counter — re-granting a fresh batch of requests every time. Measured:
+ * this let 29 through a nominal 20/min cap under a 10-connection burst.
+ * An `INSERT ... ON CONFLICT DO UPDATE` with the reset-vs-increment choice
+ * inside the SQL itself closes that gap — Postgres serializes concurrent
+ * upserts on the same row, so there's no window for two requests to both
+ * see "expired" and both reset.
+ */
 export async function checkIpRateLimit(ip: string): Promise<RateLimitResult> {
   const id = ipKey(ip);
   const now = new Date();
 
-  const existing = await prisma.authThrottle.findUnique({ where: { id } });
+  const [row] = await prisma.$queryRaw<{ count: number; windowStart: Date }[]>`
+    INSERT INTO "AuthThrottle" (id, count, "windowStart", "lockedUntil", "updatedAt")
+    VALUES (${id}, 1, ${now}, NULL, ${now})
+    ON CONFLICT (id) DO UPDATE SET
+      count = CASE
+        WHEN ${now}::timestamptz - "AuthThrottle"."windowStart" >= (${IP_WINDOW_MS} * interval '1 millisecond')
+        THEN 1
+        ELSE "AuthThrottle".count + 1
+      END,
+      "windowStart" = CASE
+        WHEN ${now}::timestamptz - "AuthThrottle"."windowStart" >= (${IP_WINDOW_MS} * interval '1 millisecond')
+        THEN ${now}::timestamptz
+        ELSE "AuthThrottle"."windowStart"
+      END,
+      "updatedAt" = ${now}
+    RETURNING count, "windowStart"
+  `;
 
-  if (existing?.lockedUntil && existing.lockedUntil > now) {
-    return {
-      ok: false,
-      error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요",
-      retryAfterSec: retryAfterSec(existing.lockedUntil, now),
-    };
-  }
-
-  if (!existing || now.getTime() - existing.windowStart.getTime() >= IP_WINDOW_MS) {
-    await prisma.authThrottle.upsert({
-      where: { id },
-      create: { id, count: 1, windowStart: now, lockedUntil: null },
-      update: { count: 1, windowStart: now, lockedUntil: null },
-    });
-    return { ok: true };
-  }
-
-  const nextCount = existing.count + 1;
-  if (nextCount > IP_LIMIT) {
-    const lockedUntil = new Date(existing.windowStart.getTime() + IP_WINDOW_MS);
-    await prisma.authThrottle.update({
-      where: { id },
-      data: { count: nextCount, lockedUntil },
-    });
+  if (row.count > IP_LIMIT) {
+    const lockedUntil = new Date(row.windowStart.getTime() + IP_WINDOW_MS);
     return {
       ok: false,
       error: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요",
@@ -71,10 +78,6 @@ export async function checkIpRateLimit(ip: string): Promise<RateLimitResult> {
     };
   }
 
-  await prisma.authThrottle.update({
-    where: { id },
-    data: { count: nextCount },
-  });
   return { ok: true };
 }
 
@@ -104,29 +107,49 @@ export async function recordPinFailure(
 ): Promise<RateLimitResult> {
   const id = pinKey(eventId, name);
   const now = new Date();
-  const existing = await prisma.authThrottle.findUnique({ where: { id } });
 
-  if (existing?.lockedUntil && existing.lockedUntil > now) {
+  // Same atomic-upsert shape as checkIpRateLimit, for the same reason: the
+  // old code's "read existing, then decide reset-vs-increment, then write"
+  // let concurrent guesses under the same name each see the same expired
+  // lock and each independently reset the counter.
+  const [row] = await prisma.$queryRaw<
+    { count: number; lockedUntil: Date | null }[]
+  >`
+    INSERT INTO "AuthThrottle" (id, count, "windowStart", "lockedUntil", "updatedAt")
+    VALUES (${id}, 1, ${now}, NULL, ${now})
+    ON CONFLICT (id) DO UPDATE SET
+      count = CASE
+        WHEN "AuthThrottle"."lockedUntil" IS NOT NULL AND "AuthThrottle"."lockedUntil" <= ${now}
+        THEN 1
+        ELSE "AuthThrottle".count + 1
+      END,
+      "windowStart" = CASE
+        WHEN "AuthThrottle"."lockedUntil" IS NOT NULL AND "AuthThrottle"."lockedUntil" <= ${now}
+        THEN ${now}::timestamptz
+        ELSE "AuthThrottle"."windowStart"
+      END,
+      "lockedUntil" = CASE
+        WHEN "AuthThrottle"."lockedUntil" IS NOT NULL AND "AuthThrottle"."lockedUntil" <= ${now}
+        THEN NULL
+        ELSE "AuthThrottle"."lockedUntil"
+      END,
+      "updatedAt" = ${now}
+    RETURNING count, "lockedUntil"
+  `;
+
+  if (row.lockedUntil && row.lockedUntil > now) {
     return {
       ok: false,
       error: "PIN 시도가 너무 많습니다. 잠시 후 다시 시도해주세요",
-      retryAfterSec: retryAfterSec(existing.lockedUntil, now),
+      retryAfterSec: retryAfterSec(row.lockedUntil, now),
     };
   }
 
-  // New window if unlocked after a previous lock expired
-  const resetWindow =
-    !existing ||
-    (existing.lockedUntil != null && existing.lockedUntil <= now);
-
-  const nextCount = resetWindow ? 1 : existing.count + 1;
-
-  if (nextCount >= PIN_MAX_FAILURES) {
+  if (row.count >= PIN_MAX_FAILURES) {
     const lockedUntil = new Date(now.getTime() + PIN_LOCK_MS);
-    await prisma.authThrottle.upsert({
+    await prisma.authThrottle.update({
       where: { id },
-      create: { id, count: nextCount, windowStart: now, lockedUntil },
-      update: { count: nextCount, lockedUntil },
+      data: { lockedUntil },
     });
     return {
       ok: false,
@@ -134,15 +157,6 @@ export async function recordPinFailure(
       retryAfterSec: retryAfterSec(lockedUntil, now),
     };
   }
-
-  await prisma.authThrottle.upsert({
-    where: { id },
-    create: { id, count: nextCount, windowStart: now, lockedUntil: null },
-    update: {
-      count: nextCount,
-      ...(resetWindow ? { windowStart: now, lockedUntil: null } : {}),
-    },
-  });
 
   return { ok: true };
 }

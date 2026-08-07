@@ -1,6 +1,8 @@
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { eventCacheTag } from "@/lib/events";
 import { submitParticipantSchema } from "@/lib/validation";
 import {
   formatDateKeyUTC,
@@ -118,11 +120,24 @@ export async function POST(
       data: { availableDates: dates },
     });
   } else {
-    const pinHash = await bcrypt.hash(pin, 10);
+    // Cost 8, not the bcrypt default of 10: this PIN is a 4-digit
+    // low-entropy "is this still you" check, not a real password, so it
+    // doesn't need password-grade hashing cost — and that cost was showing
+    // up directly as CPU contention in load testing (bcryptjs is pure JS,
+    // no native thread-pool offload, so it blocks the event loop).
+    const pinHash = await bcrypt.hash(pin, 8);
     participant = await prisma.participant.create({
       data: { eventId, name, pinHash, availableDates: dates },
     });
   }
+
+  // { expire: 0 }, not the recommended profile: "max" — that gives
+  // stale-while-revalidate semantics, which would serve ONE stale read to
+  // whoever refreshes right after submitting (read-your-own-writes would
+  // break). We're in a Route Handler, not a Server Action, so updateTag
+  // (immediate, but Server-Action-only) isn't available here — expire: 0
+  // is the documented Route Handler equivalent.
+  revalidateTag(eventCacheTag(eventId), { expire: 0 });
 
   const responseBody: ParticipantData = {
     id: participant.id,
