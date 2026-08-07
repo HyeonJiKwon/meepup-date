@@ -21,7 +21,13 @@ import type { EventWithParticipants } from "@/lib/types";
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
+export function AvailabilityForm({
+  event,
+  onSubmitted,
+}: {
+  event: EventWithParticipants;
+  onSubmitted?: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
@@ -132,13 +138,20 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error ?? "제출하지 못했습니다");
+        submitGuardRef.current = false;
+        setSubmitting(false);
         return;
       }
       toast.success("응답이 저장되었습니다");
       router.refresh();
+      // Don't reset the guard here — same reasoning as src/app/new/page.tsx:
+      // this switches to the results tab, which unmounts this form (Base UI's
+      // TabsContent unmounts inactive panels by default), so there's no
+      // legitimate resubmit to allow before that happens. Switching back to
+      // the input tab later remounts a fresh instance with the guard reset.
+      onSubmitted?.();
     } catch {
       toast.error("네트워크 오류가 발생했습니다");
-    } finally {
       submitGuardRef.current = false;
       setSubmitting(false);
     }

@@ -79,7 +79,10 @@ export function EventView({
           </TabsTrigger>
         </TabsList>
         <TabsContent value="input" className="pt-4">
-          <AvailabilityForm event={event} />
+          <AvailabilityForm
+            event={event}
+            onSubmitted={() => setActiveTab("results")}
+          />
         </TabsContent>
         <TabsContent value="results" className="pt-4">
           <ResultsView event={event} />
