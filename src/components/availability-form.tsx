@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -27,6 +27,10 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
   const [pin, setPin] = useState("");
   const [selected, setSelected] = useState<Date[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  // See src/app/new/page.tsx for why this needs a ref, not just `submitting`:
+  // state-based disabling leaves a gap between a click and the re-render
+  // that disables the button, and a fast double-click/tap can land inside it.
+  const submitGuardRef = useRef(false);
   const today = useToday();
 
   const startDate = useMemo(
@@ -107,11 +111,13 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitGuardRef.current) return;
     if (selected.length === 0) {
       toast.error("가능한 날짜를 하나 이상 선택해주세요");
       return;
     }
 
+    submitGuardRef.current = true;
     setSubmitting(true);
     try {
       const res = await fetch(`/api/events/${event.id}/participants`, {
@@ -133,6 +139,7 @@ export function AvailabilityForm({ event }: { event: EventWithParticipants }) {
     } catch {
       toast.error("네트워크 오류가 발생했습니다");
     } finally {
+      submitGuardRef.current = false;
       setSubmitting(false);
     }
   }

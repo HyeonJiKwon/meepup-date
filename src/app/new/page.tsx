@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { format, eachDayOfInterval } from "date-fns";
 import { ko } from "date-fns/locale";
@@ -47,8 +47,16 @@ export default function NewEventPage() {
   const [teamSubmitting, setTeamSubmitting] = useState<string | null>(null);
   const [teamScope, setTeamScope] = useState<"home" | "all">("home");
   const today = useToday();
+  // Plain state alone leaves a gap between a click and the disabled prop
+  // actually committing to the DOM — a fast double-click/tap can land a
+  // second call inside that gap. Refs update synchronously, so checking
+  // one here closes the gap regardless of render timing.
+  const submitGuardRef = useRef(false);
+  const teamSubmitGuardRef = useRef(false);
 
   async function handleTeamSelect(teamCode: string) {
+    if (teamSubmitGuardRef.current) return;
+    teamSubmitGuardRef.current = true;
     setTeamSubmitting(teamCode);
     try {
       const res = await fetch("/api/events/team", {
@@ -65,6 +73,7 @@ export default function NewEventPage() {
     } catch {
       toast.error("네트워크 오류가 발생했습니다");
     } finally {
+      teamSubmitGuardRef.current = false;
       setTeamSubmitting(null);
     }
   }
@@ -80,6 +89,7 @@ export default function NewEventPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitGuardRef.current) return;
 
     if (!range?.from || !range?.to) {
       toast.error("후보 날짜 범위를 선택해주세요");
@@ -97,6 +107,7 @@ export default function NewEventPage() {
       }
     }
 
+    submitGuardRef.current = true;
     setSubmitting(true);
     try {
       const res = await fetch("/api/events", {
@@ -121,6 +132,7 @@ export default function NewEventPage() {
     } catch {
       toast.error("네트워크 오류가 발생했습니다");
     } finally {
+      submitGuardRef.current = false;
       setSubmitting(false);
     }
   }
