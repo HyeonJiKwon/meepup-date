@@ -67,12 +67,18 @@ export default function NewEventPage() {
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error ?? "약속을 만들지 못했습니다");
+        teamSubmitGuardRef.current = false;
+        setTeamSubmitting(null);
         return;
       }
+      // Don't reset the guard here: router.push() kicks off navigation but
+      // doesn't wait for it, so resetting immediately re-enables the button
+      // while the new route is still loading — exactly the window that let
+      // repeated clicks create multiple events. Stay locked until this
+      // component unmounts on navigation.
       router.push(`/e/${data.id}`);
     } catch {
       toast.error("네트워크 오류가 발생했습니다");
-    } finally {
       teamSubmitGuardRef.current = false;
       setTeamSubmitting(null);
     }
@@ -126,12 +132,15 @@ export default function NewEventPage() {
       const data = await res.json();
       if (!res.ok) {
         toast.error(data.error ?? "약속을 만들지 못했습니다");
+        submitGuardRef.current = false;
+        setSubmitting(false);
         return;
       }
+      // Don't reset the guard here — see the same comment in
+      // handleTeamSelect. Stay locked until this component unmounts.
       router.push(`/e/${data.id}`);
     } catch {
       toast.error("네트워크 오류가 발생했습니다");
-    } finally {
       submitGuardRef.current = false;
       setSubmitting(false);
     }
