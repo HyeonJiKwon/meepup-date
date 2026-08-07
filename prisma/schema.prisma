@@ -26,6 +26,8 @@ model Event {
   maxParticipants Int?
   createdAt       DateTime      @default(now())
   participants    Participant[]
+
+  @@index([endDate])
 }
 
 model Participant {

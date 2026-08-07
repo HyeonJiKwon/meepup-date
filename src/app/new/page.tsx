@@ -207,6 +207,10 @@ export default function NewEventPage() {
                   전체 경기 (홈+원정)
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                후보 날짜 범위가 끝난 지 14일이 지나면 이 약속 데이터(응답 포함)는
+                자동으로 삭제돼요.
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {KBO_TEAMS.map((team) => (
                   <Button
@@ -375,6 +379,11 @@ export default function NewEventPage() {
                 보여요.
               </p>
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              후보 날짜 범위가 끝난 지 14일이 지나면 이 약속 데이터(응답 포함)는
+              자동으로 삭제돼요.
+            </p>
 
             <Button type="submit" disabled={submitting} className="mt-2">
               {submitting && <Loader2 className="size-4 animate-spin" />}
